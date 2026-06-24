@@ -280,6 +280,30 @@
   }
 
   .ctrl-sep { color: #333; font-size: 12px; margin: 0 2px; }
+
+  /* ---- alarm hint ---- */
+  .alarm-hint {
+    color: #554433;
+    font-size: 9px;
+    font-family: monospace;
+    text-align: center;
+    margin-top: 7px;
+    letter-spacing: 0.4px;
+    line-height: 1.7;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.3s ease;
+  }
+
+  .alarm-hint.show {
+    max-height: 40px;
+    opacity: 1;
+  }
+
+  .alarm-hint strong {
+    color: #886644;
+  }
 </style>
 </head>
 <body>
@@ -311,6 +335,7 @@
       <div class="toggle-thumb"></div>
     </div>
   </div>
+  <div class="alarm-hint" id="almHint"></div>
 </div>
 
 <script>
@@ -352,13 +377,13 @@
     gridEl.appendChild(grpEl);
   }
 
-  /* ---- alarm dot toggle ---- */
+  /* ---- alarm dot toggle (only when alarm is enabled) ---- */
   function toggleAlarm(g, c, r) {
-    if (alarmActive) return;
+    if (alarmActive || !alarmEnabled) return;
     alarmDots[g][c][r] = !alarmDots[g][c][r];
-    const armed = alarmDots.flat(2).some(Boolean);
-    widget.classList.toggle('armed', armed);
+    widget.classList.toggle('armed', alarmDots.flat(2).some(Boolean));
     renderLeds();
+    updateHint();
   }
 
   /* ---- render LEDs (time + alarm overlay) ---- */
@@ -367,11 +392,28 @@
       [Math.floor(val / 10), val % 10].forEach((digit, c) => {
         for (let r = 0; r < ROWS; r++) {
           const on  = !!(digit & (1 << (ROWS - 1 - r)));
-          const alm = alarmDots[g][c][r];
+          const alm = alarmEnabled && alarmDots[g][c][r]; // hide rings when alarm off
           leds[g][c][r].className = 'led' + (on ? ' on' : '') + (alm ? ' alm' : '');
         }
       });
     });
+  }
+
+  /* ---- derive H:M from alarm dots ---- */
+  function alarmHM() {
+    function dv(g, c) {
+      let v = 0;
+      for (let r = 0; r < ROWS; r++) if (alarmDots[g][c][r]) v |= 1 << (ROWS-1-r);
+      return v;
+    }
+    return [dv(0,0)*10 + dv(0,1), dv(1,0)*10 + dv(1,1)];
+  }
+
+  function updateHint() {
+    const [h, m] = alarmHM();
+    const hint = document.getElementById('almHint');
+    hint.innerHTML =
+      `<strong>${pad(h)}:${pad(m)}:00</strong> — click dots to adjust · fires when orange = blue`;
   }
 
   /* ---- tick ---- */
@@ -440,11 +482,39 @@
   /* ---- alarm toggle ---- */
   const almToggle = document.getElementById('almToggle');
   let alarmEnabled = false;
+
+  function armNextMinute() {
+    const now = new Date();
+    let h = now.getHours(), m = now.getMinutes() + 1;
+    if (m >= 60) { m = 0; h = (h + 1) % 24; }
+    // set H bits
+    [Math.floor(h/10), h%10].forEach((digit, c) => {
+      for (let r = 0; r < ROWS; r++) alarmDots[0][c][r] = !!(digit & (1 << (ROWS-1-r)));
+    });
+    // set M bits
+    [Math.floor(m/10), m%10].forEach((digit, c) => {
+      for (let r = 0; r < ROWS; r++) alarmDots[1][c][r] = !!(digit & (1 << (ROWS-1-r)));
+    });
+    // clear S bits → fires at :00
+    for (let c = 0; c < CPG; c++) for (let r = 0; r < ROWS; r++) alarmDots[2][c][r] = false;
+  }
+
   function setAlarm(on) {
     alarmEnabled = on;
     almToggle.classList.toggle('on-alarm', on);
     almToggle.setAttribute('aria-checked', on);
+    const hint = document.getElementById('almHint');
+    hint.classList.toggle('show', on);
+    if (on) {
+      armNextMinute();
+      widget.classList.add('armed');
+      updateHint();
+    } else {
+      widget.classList.remove('armed');
+    }
+    renderLeds();
   }
+
   almToggle.addEventListener('click', () => setAlarm(!alarmEnabled));
   almToggle.addEventListener('keydown', e => {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setAlarm(!alarmEnabled); }
