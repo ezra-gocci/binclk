@@ -254,7 +254,8 @@
     transition: background 0.2s;
   }
 
-  .toggle-track.on { background: #1a2a50; border-color: #2244cc; }
+  .toggle-track.on       { background: #1a2a50; border-color: #2244cc; }
+  .toggle-track.on-alarm { background: #2a1400; border-color: #994400; }
 
   .toggle-thumb {
     width: 10px;
@@ -271,6 +272,14 @@
     background: #5577dd;
     box-shadow: 0 0 4px rgba(50,100,255,0.6);
   }
+
+  .toggle-track.on-alarm .toggle-thumb {
+    left: 15px;
+    background: #cc6600;
+    box-shadow: 0 0 5px rgba(255,120,0,0.7);
+  }
+
+  .ctrl-sep { color: #333; font-size: 12px; margin: 0 2px; }
 </style>
 </head>
 <body>
@@ -296,6 +305,11 @@
       <div class="toggle-thumb"></div>
     </div>
     <label>2×</label>
+    <span class="ctrl-sep">·</span>
+    <label>alarm</label>
+    <div class="toggle-track" id="almToggle" role="switch" aria-checked="false" tabindex="0">
+      <div class="toggle-thumb"></div>
+    </div>
   </div>
 </div>
 
@@ -378,7 +392,7 @@
 
   /* ---- alarm match: every dot's armed state must equal its lit state ---- */
   function checkAlarm(h, m, s) {
-    if (!alarmDots.flat(2).some(Boolean)) return;
+    if (!alarmEnabled || !alarmDots.flat(2).some(Boolean)) return;
 
     const vals = [h, m, s];
     let match = true;
@@ -421,6 +435,19 @@
     boomEl.classList.remove('show');
     alarmActive = false;
     tick();
+  });
+
+  /* ---- alarm toggle ---- */
+  const almToggle = document.getElementById('almToggle');
+  let alarmEnabled = false;
+  function setAlarm(on) {
+    alarmEnabled = on;
+    almToggle.classList.toggle('on-alarm', on);
+    almToggle.setAttribute('aria-checked', on);
+  }
+  almToggle.addEventListener('click', () => setAlarm(!alarmEnabled));
+  almToggle.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setAlarm(!alarmEnabled); }
   });
 
   /* ---- size toggle ---- */
