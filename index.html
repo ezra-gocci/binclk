@@ -376,25 +376,20 @@
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
-  /* ---- alarm match: "don't care" for unset columns ---- */
+  /* ---- alarm match: every dot's armed state must equal its lit state ---- */
   function checkAlarm(h, m, s) {
     if (!alarmDots.flat(2).some(Boolean)) return;
 
     const vals = [h, m, s];
-    const match = vals.every((val, g) => {
-      const tens = Math.floor(val / 10), ones = val % 10;
-      // derive alarm digits for this group
-      let at = 0, ao = 0;
-      for (let r = 0; r < ROWS; r++) {
-        const bit = 1 << (ROWS - 1 - r);
-        if (alarmDots[g][0][r]) at |= bit;
-        if (alarmDots[g][1][r]) ao |= bit;
-      }
-      const tensArmed = alarmDots[g][0].some(Boolean);
-      const onesArmed = alarmDots[g][1].some(Boolean);
-      if (tensArmed && at !== tens) return false;
-      if (onesArmed && ao !== ones) return false;
-      return true;
+    let match = true;
+    vals.forEach((val, g) => {
+      [Math.floor(val / 10), val % 10].forEach((digit, c) => {
+        for (let r = 0; r < ROWS; r++) {
+          const isLit   = !!(digit & (1 << (ROWS - 1 - r)));
+          const isArmed = alarmDots[g][c][r];
+          if (isArmed !== isLit) match = false;
+        }
+      });
     });
 
     if (match && Date.now() - lastFiredMs > 65_000) {
